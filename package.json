@@ -9,9 +9,9 @@
     "express": "4.x",
     "less": "2.0.0",
     "node-jsx": "0.12.4",
+    "promise": "^6.1.0",
     "react": "0.12.1",
     "reactify": "0.17.1",
-    "rsvp": "^3.0.16",
     "underscore": "1.7.0"
   },
   "devDependencies": {

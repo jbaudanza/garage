@@ -1,42 +1,46 @@
 var fs = require('fs');
-var RSVP = require('rsvp');
+var Promise = require('promise');
 
-function writeGpio(path, value, callback) {
-  return new RSVP.Promise((resolve, reject) => {
-    fs.writeFile('/sys/class/gpio/' + path, value, (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    });
-  });
-}
+var writeFile = Promise.denodeify(fs.writeFile);
+
+var basePath = '/sys/class/gpio/';
 
 function initialize() {
   var pins = ['2', '3'];
 
   var list = pins.map((pin) => {
-    return writeGpio('export', pin).then( () => {
-      // 'high' is the same as 'out', except with an initial value of 1
-      return writeGpio(`gpio${pin}/direction`, 'high');
-    });
+    var gpioBase = basePath + 'gpio' + pin;
+
+    function catchBusyError(err) {
+      if (err.code == 'EBUSY') {
+        // Generate a warning, but allow to continue
+        console.warn(`WARNING: GPIO pin ${pin} is already exported.`);
+      } else {
+        throw err;
+      }
+    }
+
+    return writeFile(basePath + 'export', pin)
+        .catch(catchBusyError)
+        .then(sleep)
+        // 'high' is the same as 'out', except with an initial value of 1
+        .then(() => writeFile(gpioBase + '/direction', 'high') );
   });
 
-  return RSVP.all(list);
+  return Promise.all(list);
 }
 
 var waitForInit = initialize();
 
 function sleep() {
-  return new RSVP.Promise((resolve) => setTimeout(resolve, 2000));
+  return new Promise((resolve) => setTimeout(resolve, 500));
 }
 
 module.exports = function(pin) {
-  var file = `gpio${pin}/value`;
+  var file = `${basePath}gpio${pin}/value`;
 
   return waitForInit
-      .then(() => writeGpio(file, '0'))
+      .then(() => writeFile(file, '0'))
       .then(sleep)
-      .then(() => writeGpio(file, '1'));
+      .then(() => writeFile(file, '1'));
 }
